@@ -42,8 +42,7 @@ struct is_compiled_string : std::is_base_of<compiled_string, S> {};
 #endif
 
 #if FMT_USE_NONTYPE_TEMPLATE_ARGS
-template <typename Char, size_t N,
-          fmt::detail_exported::fixed_string<Char, N> Str>
+template <typename Char, size_t N, fmt::detail::fixed_string<Char, N> Str>
 struct udl_compiled_string : compiled_string {
   using char_type = Char;
   explicit constexpr operator basic_string_view<char_type>() const {
@@ -71,10 +70,10 @@ constexpr const auto& get([[maybe_unused]] const T& first,
     return detail::get<N - 1>(rest...);
 }
 
-#if FMT_USE_NONTYPE_TEMPLATE_ARGS
+#  if FMT_USE_NONTYPE_TEMPLATE_ARGS
 template <int N, typename T, typename... Args, typename Char>
 constexpr auto get_arg_index_by_name(basic_string_view<Char> name) -> int {
-  if constexpr (is_statically_named_arg<T>()) {
+  if constexpr (is_static_named_arg<T>()) {
     if (name == T::name) return N;
   }
   if constexpr (sizeof...(Args) > 0)
@@ -82,14 +81,14 @@ constexpr auto get_arg_index_by_name(basic_string_view<Char> name) -> int {
   (void)name;  // Workaround an MSVC bug about "unused" parameter.
   return -1;
 }
-#endif
+#  endif
 
 template <typename... Args, typename Char>
 FMT_CONSTEXPR auto get_arg_index_by_name(basic_string_view<Char> name) -> int {
-#if FMT_USE_NONTYPE_TEMPLATE_ARGS
+#  if FMT_USE_NONTYPE_TEMPLATE_ARGS
   if constexpr (sizeof...(Args) > 0)
     return get_arg_index_by_name<0, Args...>(name);
-#endif
+#  endif
   (void)name;
   return -1;
 }
@@ -538,7 +537,7 @@ void print(const S& fmt, const Args&... args) {
 
 #if FMT_USE_NONTYPE_TEMPLATE_ARGS
 inline namespace literals {
-template <detail_exported::fixed_string Str> constexpr auto operator""_cf() {
+template <detail::fixed_string Str> constexpr auto operator""_cf() {
   using char_t = remove_cvref_t<decltype(Str.data[0])>;
   return detail::udl_compiled_string<char_t, sizeof(Str.data) / sizeof(char_t),
                                      Str>();

@@ -2005,7 +2005,6 @@ TEST(format_test, custom_format_compile_time_string) {
   EXPECT_EQ(fmt::format(FMT_STRING("{}"), const_answer), "42");
 }
 
-#if FMT_USE_USER_DEFINED_LITERALS
 TEST(format_test, named_arg_udl) {
   using namespace fmt::literals;
   auto udl_a = fmt::format("{first}{second}{first}{third}", "first"_a = "abra",
@@ -2017,13 +2016,12 @@ TEST(format_test, named_arg_udl) {
 
   EXPECT_EQ(fmt::format("{answer}", "answer"_a = Answer()), "42");
 }
-#endif  // FMT_USE_USER_DEFINED_LITERALS
 
 TEST(format_test, enum) { EXPECT_EQ(fmt::format("{}", foo), "0"); }
 
 TEST(format_test, formatter_not_specialized) {
-  static_assert(!fmt::has_formatter<fmt::formatter<test_enum>,
-                                    fmt::format_context>::value,
+  static_assert(!fmt::is_formattable<fmt::formatter<test_enum>,
+                                     fmt::format_context>::value,
                 "");
 }
 
@@ -2032,6 +2030,8 @@ enum big_enum : unsigned long long { big_enum_value = 5000000000ULL };
 auto format_as(big_enum e) -> unsigned long long { return e; }
 
 TEST(format_test, strong_enum) {
+  auto arg = fmt::basic_format_arg<fmt::context>(big_enum_value);
+  EXPECT_EQ(arg.type(), fmt::detail::type::ulong_long_type);
   EXPECT_EQ(fmt::format("{}", big_enum_value), "5000000000");
 }
 #endif
@@ -2516,61 +2516,38 @@ TEST(format_test, writer) {
 }
 
 #if FMT_USE_BITINT
-#  pragma clang diagnostic ignored "-Wbit-int-extension"
-
-template <size_t N, bool is_signed>
-using bitint_helper =
-    fmt::conditional_t<is_signed, _BitInt(N), unsigned _BitInt(N)>;
-template <size_t N> using signed_bitint = bitint_helper<N, true>;
-template <size_t N> using unsigned_bitint = bitint_helper<N, false>;
+FMT_PRAGMA_CLANG(diagnostic ignored "-Wbit-int-extension")
 
 TEST(format_test, bitint) {
-  EXPECT_EQ(fmt::format("{}", unsigned_bitint<3>(7)), "7");
-  EXPECT_EQ(fmt::format("{}", signed_bitint<7>()), "0");
+  using fmt::detail::bitint;
+  using fmt::detail::ubitint;
 
-  EXPECT_EQ(fmt::format("{}", unsigned_bitint<15>(31000)), "31000");
-  EXPECT_EQ(fmt::format("{}", signed_bitint<16>(INT16_MIN)), "-32768");
-  EXPECT_EQ(fmt::format("{}", signed_bitint<16>(INT16_MAX)), "32767");
+  EXPECT_EQ(fmt::format("{}", ubitint<3>(7)), "7");
+  EXPECT_EQ(fmt::format("{}", bitint<7>()), "0");
 
-  EXPECT_EQ(fmt::format("{}", unsigned_bitint<32>(4294967295)), "4294967295");
+  EXPECT_EQ(fmt::format("{}", ubitint<15>(31000)), "31000");
+  EXPECT_EQ(fmt::format("{}", bitint<16>(INT16_MIN)), "-32768");
+  EXPECT_EQ(fmt::format("{}", bitint<16>(INT16_MAX)), "32767");
 
-  EXPECT_EQ(fmt::format("{}", unsigned_bitint<47>(140737488355327ULL)),
+  EXPECT_EQ(fmt::format("{}", ubitint<32>(4294967295)), "4294967295");
+
+  EXPECT_EQ(fmt::format("{}", ubitint<47>(140737488355327ULL)),
             "140737488355327");
-  EXPECT_EQ(fmt::format("{}", signed_bitint<47>(-40737488355327LL)),
+  EXPECT_EQ(fmt::format("{}", bitint<47>(-40737488355327LL)),
             "-40737488355327");
 
   // Check lvalues and const
-  auto a = signed_bitint<8>(0);
-  auto b = unsigned_bitint<32>(4294967295);
-  const auto c = signed_bitint<7>(0);
-  const auto d = unsigned_bitint<32>(4294967295);
+  auto a = bitint<8>(0);
+  auto b = ubitint<32>(4294967295);
+  const auto c = bitint<7>(0);
+  const auto d = ubitint<32>(4294967295);
   EXPECT_EQ(fmt::format("{}", a), "0");
   EXPECT_EQ(fmt::format("{}", b), "4294967295");
   EXPECT_EQ(fmt::format("{}", c), "0");
   EXPECT_EQ(fmt::format("{}", d), "4294967295");
 
-  static_assert(fmt::is_formattable<signed_bitint<64>, char>{}, "");
-  static_assert(fmt::is_formattable<unsigned_bitint<64>, char>{}, "");
-
-#  if FMT_USE_INT128
-  static_assert(fmt::is_formattable<signed_bitint<128>, char>{}, "");
-  static_assert(fmt::is_formattable<unsigned_bitint<128>, char>{}, "");
-
-  EXPECT_EQ(fmt::format("{}", signed_bitint<128>(0)), "0");
-  EXPECT_EQ(fmt::format("{}", unsigned_bitint<128>(0)), "0");
-  EXPECT_EQ("9223372036854775808",
-            fmt::format("{}", signed_bitint<65>(INT64_MAX) + 1));
-  EXPECT_EQ("-9223372036854775809",
-            fmt::format("{}", signed_bitint<65>(INT64_MIN) - 1));
-  EXPECT_EQ("18446744073709551616",
-            fmt::format("{}", unsigned_bitint<66>(UINT64_MAX) + 1));
-  EXPECT_EQ("170141183460469231731687303715884105727",
-            fmt::format("{}", signed_bitint<128>(int128_max)));
-  EXPECT_EQ("-170141183460469231731687303715884105728",
-            fmt::format("{}", signed_bitint<128>(int128_min)));
-  EXPECT_EQ("340282366920938463463374607431768211455",
-            fmt::format("{}", unsigned_bitint<128>(uint128_max)));
-#  endif
+  static_assert(fmt::is_formattable<bitint<64>, char>{}, "");
+  static_assert(fmt::is_formattable<ubitint<64>, char>{}, "");
 }
 #endif
 

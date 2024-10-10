@@ -140,6 +140,7 @@ TEST(std_test, optional) {
 
 TEST(std_test, expected) {
 #ifdef __cpp_lib_expected
+  EXPECT_EQ(fmt::format("{}", std::expected<void, int>{}), "expected()");
   EXPECT_EQ(fmt::format("{}", std::expected<int, int>{1}), "expected(1)");
   EXPECT_EQ(fmt::format("{}", std::expected<int, int>{std::unexpected(1)}),
             "unexpected(1)");
@@ -163,6 +164,7 @@ TEST(std_test, expected) {
   EXPECT_FALSE(
       (fmt::is_formattable<std::expected<int, unformattable2>>::value));
   EXPECT_TRUE((fmt::is_formattable<std::expected<int, int>>::value));
+  EXPECT_TRUE((fmt::is_formattable<std::expected<void, int>>::value));
 #endif
 }
 
@@ -263,9 +265,13 @@ TEST(std_test, variant) {
 }
 
 TEST(std_test, error_code) {
+  auto& generic = std::generic_category();
   EXPECT_EQ("generic:42",
-            fmt::format(FMT_STRING("{0}"),
-                        std::error_code(42, std::generic_category())));
+            fmt::format(FMT_STRING("{0}"), std::error_code(42, generic)));
+  EXPECT_EQ("  generic:42",
+            fmt::format(FMT_STRING("{:>12}"), std::error_code(42, generic)));
+  EXPECT_EQ("generic:42  ",
+            fmt::format(FMT_STRING("{:12}"), std::error_code(42, generic)));
   EXPECT_EQ("system:42",
             fmt::format(FMT_STRING("{0}"),
                         std::error_code(42, fmt::system_category())));
@@ -392,4 +398,9 @@ TEST(std_test, format_shared_ptr) {
   std::shared_ptr<int> sp(new int(1));
   EXPECT_EQ(fmt::format("{}", fmt::ptr(sp.get())),
             fmt::format("{}", fmt::ptr(sp)));
+}
+
+TEST(std_test, format_reference_wrapper) {
+  int num = 35;
+  EXPECT_EQ("35", fmt::to_string(std::cref(num)));
 }
